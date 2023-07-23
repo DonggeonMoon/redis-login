@@ -21,3 +21,36 @@ Redis는 RAM에 데이터를 저장하지만, snapshot이나 AOF(Append Only Fil
   * 게임 내 사기 탐지, 실시간 입찰, 데이트 앱 등 매치 메이킹 연산
 * 실시간 데이터 분석
   * 소셜 미디어 분석, 광고 타겟팅, 개인화 분석
+
+## Spring Data Redis
+스프링 데이터 레디스에서는 Redis 드라이버로 Lettuce와 Jedis를 지원하며, 별도의 설정이 없을 경우 Lettuce를 기본적으로 사용한다. Jedis가 자바 Redis 드라이버의 사실상 표준임에도 불구하고 Lettuce를 사용하는 이유를 스프링 프로젝트(구체적으로는 Spring Session에서)의 issues 내 답변에서 다음과 같이 설명한다.
+(https://github.com/spring-projects/spring-session/issues/789)
+* Jedis는 여러 스레드에서 하나의 Jedis 인스턴스를 공유하려고 할 때 `thread-safe`하지 않다.
+ * 멀티 스레드 환경에서 Jedis를 사용하기 위해서는 커넥션 풀을 사용하여야 한다.
+ * 커넥션 풀은 각각의 스레드가 연결 시마다 Jedis 인스턴스를 생성해야 하기 때문에 비용이 많이 든다.
+ * 반면, Lettuce는 netty 기반이며 각각의 스레드들이 connection 인스턴스(StatefulRedisConnection)을 공유할 수 있다. 따라서, 멀티 스레드 애플리케이션도 하나의 connection으로 Redis 사용이 가능하다.
+
+### RedisTemplate 설정
+* `redisTemplate.setConnectionFactory(redisConnectionFactory());`
+  * 사용할 RedisConnectionFactory 구현체(LettuceConnectionFactory, JedisConnectionFactory)를 설정한다.
+* `redisTemplate.setEnableTransactionSupport(true);`
+  * Redis를 스프링 트랜잭션에 참여시킬지 여부를 설정한다. 이때, 스프링 트랜잭션 매니저 사용이 활성화되어 있어야 한다.
+* `redisTemplate.setExposeConnection(true);`
+  * Redis connection을 RedisCallback 코드에 노출시킬지 여부를 설정한다.
+* `redisTemplate.setEnableDefaultSerializer(true);`,
+  `redisTemplate.setDefaultSerializer(new StringRedisSerializer());`
+  * 각각, 기본 Redis serializer를 사용할지, 어떤 Redis serializer를 사용할지 설정한다.
+* `redisTemplate.setBeanClassLoader(ClassLoader.getPlatformClassLoader());`
+  * 다른 RedisSerializer를 사용하지 않을 때, 기본 JdkSerializationRedisSerializer로 사용할 class loader를 설정한다.
+* `redisTemplate.setKeySerializer(new StringRedisSerializer());`
+  * 사용할 key Redis serializer를 설정한다.
+* `redisTemplate.setValueSerializer(new StringRedisSerializer());`
+  * 사용할 value Redis serializer를 설정한다.
+* `redisTemplate.setHashKeySerializer(new StringRedisSerializer());`
+  * hash 자료 구조에 사용할 key Redis serializer를 설정한다.
+  `redisTemplate.setHashValueSerializer(new StringRedisSerializer());`
+  * hash 자료 구조에 사용할 value Redis serializer를 설정한다.
+* `redisTemplate.setStringSerializer(new StringRedisSerializer());`
+  * 사용할 문자열 Redis serializer를 설정한다.
+* `redisTemplate.setScriptExecutor(new DefaultScriptExecutor<>(redisTemplate));`
+  * 루아 스크립트 사용 시, 스크립트를 실행시킬 script executor를 설정한다.
